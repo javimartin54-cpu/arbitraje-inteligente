@@ -1,45 +1,42 @@
 import { useState } from 'react';
 
 export default function Home() {
-  const [title, setTitle] = useState('');
-  const [buyPrice, setBuyPrice] = useState('');
-  const [sellPrice, setSellPrice] = useState('');
-  const [url, setUrl] = useState('');
+  const [keywords, setKeywords] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState('');
 
-  const analyzeProduct = async () => {
-    if (!title || !buyPrice || !sellPrice) {
-      setError('Completa título, precio de compra y precio de venta');
+  const searchArbitrage = async () => {
+    if (!keywords.trim()) {
+      setError('Introduce palabras clave para buscar');
       return;
     }
 
     setLoading(true);
     setError('');
-    setResult(null);
+    setOpportunities([]);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/analyze`, {
+      const keywordList = keywords.split(' ').filter(k => k.trim());
+      
+      const response = await fetch(`${apiUrl}/api/search-arbitrage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title,
-          buy_price: parseFloat(buyPrice),
-          estimated_sell_price: parseFloat(sellPrice),
-          url: url || '',
-          image_url: '',
-          location: ''
+          keywords: keywordList,
+          max_results: 20
         })
       });
 
       const data = await response.json();
       
       if (data.success) {
-        setResult(data.analysis);
+        setOpportunities(data.opportunities || []);
+        setStats(data.platforms_searched);
       } else {
-        setError(data.error || 'Error en el análisis');
+        setError('Error en la búsqueda');
       }
     } catch (e: any) {
       setError('Error conectando con el backend: ' + e.message);
@@ -48,65 +45,52 @@ export default function Home() {
     }
   };
 
+  const getPlatformEmoji = (platform: string) => {
+    const emojis: any = {
+      'wallapop': '🛍️',
+      'ebay': '🌐',
+      'vinted': '👕',
+      'catawiki': '🎨'
+    };
+    return emojis[platform] || '📦';
+  };
+
+  const getPlatformColor = (platform: string) => {
+    const colors: any = {
+      'wallapop': '#13c1ac',
+      'ebay': '#e53238',
+      'vinted': '#09b1ba',
+      'catawiki': '#ff6f00'
+    };
+    return colors[platform] || '#666';
+  };
+
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 36, fontWeight: 700 }}>🎯 Arbitraje Inteligente</h1>
+        <h1 style={{ margin: 0, fontSize: 36, fontWeight: 700 }}>🎯 Arbitraje Inteligente Multi-Plataforma</h1>
         <p style={{ margin: '8px 0 0 0', fontSize: 16, color: '#666' }}>
-          Analiza productos manualmente
+          Busca en Wallapop, eBay, Vinted y Catawiki simultáneamente
         </p>
       </div>
 
       <div style={cardStyle}>
-        <h2 style={{ marginTop: 0, fontSize: 20 }}>📊 Analizar Producto</h2>
+        <h2 style={{ marginTop: 0, fontSize: 20 }}>🔍 Buscar Oportunidades de Arbitraje</h2>
         
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Título del producto *</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ej: Game Boy Color Azul"
-            style={inputStyle}
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-          <div>
-            <label style={labelStyle}>Precio de compra (€) *</label>
-            <input
-              type="number"
-              value={buyPrice}
-              onChange={(e) => setBuyPrice(e.target.value)}
-              placeholder="30"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Precio de venta estimado (€) *</label>
-            <input
-              type="number"
-              value={sellPrice}
-              onChange={(e) => setSellPrice(e.target.value)}
-              placeholder="60"
-              style={inputStyle}
-            />
-          </div>
-        </div>
-
         <div style={{ marginBottom: 20 }}>
-          <label style={labelStyle}>URL (opcional)</label>
+          <label style={labelStyle}>Palabras clave (ej: game boy, pokemon, rolex)</label>
           <input
             type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://es.wallapop.com/item/..."
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && searchArbitrage()}
+            placeholder="game boy color"
             style={inputStyle}
           />
         </div>
 
         <button 
-          onClick={analyzeProduct}
+          onClick={searchArbitrage}
           disabled={loading}
           style={{
             ...buttonStyle,
@@ -114,11 +98,18 @@ export default function Home() {
             padding: 16,
             fontSize: 16,
             fontWeight: 700,
-            backgroundColor: loading ? '#ccc' : '#0070f3'
+            backgroundColor: loading ? '#ccc' : '#0070f3',
+            cursor: loading ? 'wait' : 'pointer'
           }}
         >
-          {loading ? '⏳ Analizando...' : '🚀 Analizar Oportunidad'}
+          {loading ? '⏳ Buscando en todas las plataformas...' : '🚀 Buscar Oportunidades'}
         </button>
+
+        {loading && (
+          <div style={{ marginTop: 16, padding: 12, background: '#e3f2fd', borderRadius: 6, fontSize: 14 }}>
+            ⚡ Scraping Wallapop, eBay, Vinted y Catawiki en paralelo...
+          </div>
+        )}
       </div>
 
       {error && (
@@ -127,103 +118,132 @@ export default function Home() {
         </div>
       )}
 
-      {result && (
-        <div style={{ ...cardStyle, marginTop: 24 }}>
-          <h3 style={{ marginTop: 0 }}>📊 Resultado del Análisis</h3>
+      {stats && (
+        <div style={{ ...cardStyle, marginTop: 24, background: '#f8f9fa' }}>
+          <h3 style={{ marginTop: 0, marginBottom: 16 }}>📊 Productos Encontrados</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div style={statBoxStyle}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#13c1ac' }}>🛍️ {stats.wallapop}</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Wallapop</div>
+            </div>
+            <div style={statBoxStyle}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#e53238' }}>🌐 {stats.ebay}</div>
+              <div style={{ fontSize: 12, color: '#666' }}>eBay</div>
+            </div>
+            <div style={statBoxStyle}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#09b1ba' }}>👕 {stats.vinted}</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Vinted</div>
+            </div>
+            <div style={statBoxStyle}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#ff6f00' }}>🎨 {stats.catawiki}</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Catawiki</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {opportunities.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h2 style={{ marginBottom: 16 }}>💰 Mejores Oportunidades ({opportunities.length})</h2>
           
-          <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
-            <div style={statStyle}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: result.net_profit > 0 ? '#0070f3' : '#c00' }}>
-                {result.net_profit > 0 ? '+' : ''}{result.net_profit}€
-              </div>
-              <div style={{ fontSize: 14, color: '#666' }}>Beneficio Neto</div>
-            </div>
-            
-            <div style={statStyle}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: '#fdcb6e' }}>
-                {result.roi_percent}%
-              </div>
-              <div style={{ fontSize: 14, color: '#666' }}>ROI</div>
-            </div>
-            
-            <div style={statStyle}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: '#00b894' }}>
-                {result.score}
-              </div>
-              <div style={{ fontSize: 14, color: '#666' }}>Score</div>
-            </div>
-          </div>
+          {opportunities.map((opp, idx) => (
+            <div key={idx} style={{ ...cardStyle, marginBottom: 16, background: opp.roi_percent >= 50 ? '#e8f5e9' : 'white' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontSize: 24, fontWeight: 700, color: opp.roi_percent >= 50 ? '#2e7d32' : '#ff6f00' }}>
+                      #{idx + 1}
+                    </span>
+                    <span style={{ fontSize: 20, fontWeight: 700, color: opp.net_profit >= 0 ? '#2e7d32' : '#c62828' }}>
+                      {opp.net_profit >= 0 ? '+' : ''}{opp.net_profit}€
+                    </span>
+                    <span style={{ fontSize: 16, color: '#666' }}>
+                      ({opp.roi_percent}% ROI)
+                    </span>
+                  </div>
 
-          <div style={{
-            padding: 16,
-            borderRadius: 8,
-            background: result.score >= 65 ? '#e8f5e9' : result.score >= 50 ? '#fff3e0' : '#ffebee',
-            marginBottom: 20,
-            fontSize: 16,
-            fontWeight: 600
-          }}>
-            {result.recommendation}
-          </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, alignItems: 'center' }}>
+                    {/* COMPRAR */}
+                    <div style={{ padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>
+                        {getPlatformEmoji(opp.buy_platform)} COMPRAR EN
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: getPlatformColor(opp.buy_platform), textTransform: 'uppercase', marginBottom: 8 }}>
+                        {opp.buy_platform}
+                      </div>
+                      <div style={{ fontSize: 13, marginBottom: 8, height: 40, overflow: 'hidden' }}>
+                        {opp.buy_title.substring(0, 60)}...
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                        {opp.buy_price}€
+                      </div>
+                      {opp.buy_url && (
+                        <a href={opp.buy_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0070f3', textDecoration: 'none' }}>
+                          Ver producto →
+                        </a>
+                      )}
+                    </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <h4 style={{ margin: '0 0 12px 0' }}>💰 Desglose de Costes</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px 16px', fontSize: 14 }}>
-              <div>Precio de compra:</div>
-              <div style={{ textAlign: 'right', fontWeight: 600 }}>{result.costs_breakdown.buy_price}€</div>
-              
-              <div>Comisión compra:</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.buy_commission}€</div>
-              
-              <div>Comisión venta:</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.sell_commission}€</div>
-              
-              <div>Comisión pago:</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.payment_fee}€</div>
-              
-              <div>Envío:</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.sell_shipping}€</div>
-              
-              <div>Embalaje:</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.packaging}€</div>
-              
-              <div>Impuestos (19%):</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.taxes}€</div>
-              
-              <div>Coste de riesgo:</div>
-              <div style={{ textAlign: 'right' }}>{result.costs_breakdown.risk_cost}€</div>
-              
-              <div style={{ borderTop: '2px solid #333', paddingTop: 8, fontWeight: 700 }}>INVERSIÓN TOTAL:</div>
-              <div style={{ borderTop: '2px solid #333', paddingTop: 8, textAlign: 'right', fontWeight: 700 }}>
-                {result.costs_breakdown.total_investment}€
+                    {/* FLECHA */}
+                    <div style={{ fontSize: 32, color: '#0070f3' }}>
+                      →
+                    </div>
+
+                    {/* VENDER */}
+                    <div style={{ padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>
+                        {getPlatformEmoji(opp.sell_platform)} VENDER EN
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: getPlatformColor(opp.sell_platform), textTransform: 'uppercase', marginBottom: 8 }}>
+                        {opp.sell_platform}
+                      </div>
+                      <div style={{ fontSize: 13, marginBottom: 8, height: 40, overflow: 'hidden' }}>
+                        {opp.sell_title.substring(0, 60)}...
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                        {opp.sell_price}€
+                      </div>
+                      {opp.sell_url && (
+                        <a href={opp.sell_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0070f3', textDecoration: 'none' }}>
+                          Ver producto →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* COSTES */}
+                  <details style={{ marginTop: 12 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 13, color: '#666' }}>Ver desglose de costes</summary>
+                    <div style={{ marginTop: 8, fontSize: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                      <div>Precio compra: {opp.costs_breakdown.buy_price}€</div>
+                      <div>Comisión compra: {opp.costs_breakdown.buy_commission}€</div>
+                      <div>Envío compra: {opp.costs_breakdown.buy_shipping}€</div>
+                      <div>Comisión venta: {opp.costs_breakdown.sell_commission}€</div>
+                      <div>Envío venta: {opp.costs_breakdown.sell_shipping}€</div>
+                      <div>Comisión pago: {opp.costs_breakdown.payment_fee}€</div>
+                      <div>Embalaje: {opp.costs_breakdown.packaging}€</div>
+                      <div>Impuestos: {opp.costs_breakdown.taxes}€</div>
+                      <div style={{ fontWeight: 700, borderTop: '1px solid #ddd', paddingTop: 4, marginTop: 4 }}>
+                        Inversión total: {opp.total_investment}€
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </div>
             </div>
-          </div>
+          ))}
+        </div>
+      )}
 
-          <div style={{ marginBottom: 16 }}>
-            <h4 style={{ margin: '0 0 8px 0' }}>⚠️ Análisis de Riesgo</h4>
-            <div style={{ fontSize: 14 }}>
-              <div>• Tiempo estimado de venta: <strong>{result.risk_adjusted.expected_days_to_sell} días</strong></div>
-              <div>• Riesgo de no vender: <strong>{result.risk_adjusted.no_sale_risk}%</strong></div>
-              <div>• Riesgo de devolución: <strong>{result.risk_adjusted.return_risk}%</strong></div>
-              <div>• Precio breakeven: <strong>{result.breakeven_price}€</strong></div>
-            </div>
+      {!loading && opportunities.length === 0 && stats && (
+        <div style={{ ...cardStyle, marginTop: 24, textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+          <div style={{ fontSize: 18, color: '#666' }}>
+            No se encontraron oportunidades rentables con estos términos de búsqueda.
           </div>
-
-          {url && (
-            <a 
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                ...buttonStyle,
-                textDecoration: 'none',
-                display: 'inline-block',
-                backgroundColor: '#00b894'
-              }}
-            >
-              Ver Producto en Wallapop →
-            </a>
-          )}
+          <div style={{ fontSize: 14, color: '#999', marginTop: 8 }}>
+            Intenta con otras palabras clave o productos diferentes.
+          </div>
         </div>
       )}
     </div>
@@ -240,36 +260,38 @@ const cardStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '10px 12px',
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  fontSize: 14,
-  boxSizing: 'border-box'
+  padding: '12px 16px',
+  border: '2px solid #ddd',
+  borderRadius: 8,
+  fontSize: 16,
+  boxSizing: 'border-box',
+  transition: 'border-color 0.2s'
 };
 
 const buttonStyle: React.CSSProperties = {
-  padding: '10px 20px',
+  padding: '12px 24px',
   border: 'none',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 500,
+  borderRadius: 8,
+  fontSize: 16,
+  fontWeight: 600,
   cursor: 'pointer',
   backgroundColor: '#0070f3',
-  color: 'white'
+  color: 'white',
+  transition: 'all 0.2s'
 };
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  marginBottom: 6,
+  marginBottom: 8,
   fontSize: 14,
   fontWeight: 600,
   color: '#333'
 };
 
-const statStyle: React.CSSProperties = {
-  flex: 1,
+const statBoxStyle: React.CSSProperties = {
   textAlign: 'center',
   padding: 16,
-  background: '#f8f9fa',
-  borderRadius: 8
+  background: 'white',
+  borderRadius: 8,
+  border: '1px solid #e0e0e0'
 };
